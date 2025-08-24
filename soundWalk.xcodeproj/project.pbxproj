@@ -16,6 +16,9 @@
 		5A59D0692E5B73BC0050866E /* soundWalkUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A59D0682E5B73BC0050866E /* soundWalkUITestsLaunchTests.swift */; };
 		5A59D0772E5BABDA0050866E /* ClockTick.wav in Resources */ = {isa = PBXBuildFile; fileRef = 5A59D0762E5BABDA0050866E /* ClockTick.wav */; };
 		5A59D07B2E5BB6E70050866E /* familyUnits.wav in Resources */ = {isa = PBXBuildFile; fileRef = 5A59D07A2E5BB6E70050866E /* familyUnits.wav */; };
+		5A59D07D2E5BCA330050866E /* Zone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A59D07C2E5BCA330050866E /* Zone.swift */; };
+		5A59D07F2E5BCA920050866E /* SoundWalkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A59D07E2E5BCA920050866E /* SoundWalkManager.swift */; };
+		5A59D0812E5BCAC20050866E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A59D0802E5BCAC20050866E /* LocationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +53,9 @@
 		5A59D0762E5BABDA0050866E /* ClockTick.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = ClockTick.wav; sourceTree = "<group>"; };
 		5A59D0792E5BB3D80050866E /* Ron1.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = Ron1.m4a; sourceTree = "<group>"; };
 		5A59D07A2E5BB6E70050866E /* familyUnits.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = familyUnits.wav; sourceTree = "<group>"; };
+		5A59D07C2E5BCA330050866E /* Zone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zone.swift; sourceTree = "<group>"; };
+		5A59D07E2E5BCA920050866E /* SoundWalkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundWalkManager.swift; sourceTree = "<group>"; };
+		5A59D0802E5BCAC20050866E /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +111,9 @@
 				5A59D07A2E5BB6E70050866E /* familyUnits.wav */,
 				5A59D0752E5B7E840050866E /* Info.plist */,
 				5A59D0492E5B73BB0050866E /* soundWalkApp.swift */,
+				5A59D07E2E5BCA920050866E /* SoundWalkManager.swift */,
+				5A59D0802E5BCAC20050866E /* LocationService.swift */,
+				5A59D07C2E5BCA330050866E /* Zone.swift */,
 				5A59D04D2E5B73BB0050866E /* Item.swift */,
 				5A59D04F2E5B73BC0050866E /* Assets.xcassets */,
 				5A59D0512E5B73BC0050866E /* Preview Content */,
@@ -269,8 +278,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A59D07F2E5BCA920050866E /* SoundWalkManager.swift in Sources */,
 				5A59D04E2E5B73BB0050866E /* Item.swift in Sources */,
+				5A59D0812E5BCAC20050866E /* LocationService.swift in Sources */,
 				5A59D04A2E5B73BB0050866E /* soundWalkApp.swift in Sources */,
+				5A59D07D2E5BCA330050866E /* Zone.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
