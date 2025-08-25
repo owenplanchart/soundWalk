@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-// Live location helper (continuous)
+// Live location helper (continuous) — unchanged
 final class LiveLocation: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     var onUpdate: ((CLLocation) -> Void)?
@@ -24,36 +24,38 @@ final class LiveLocation: NSObject, CLLocationManagerDelegate {
     }
 }
 
-// Stable palette (use z.colorIndex if you persisted it)
+// Stable palette — unchanged
 private let zoneColors: [Color] = [.blue, .green, .orange, .purple, .pink, .teal, .indigo, .mint, .brown, .cyan]
 
 struct ZoneEditorView: View {
     @EnvironmentObject var manager: SoundWalkManager
 
-    // Map
+    // Map — unchanged
     @State private var camera: MapCameraPosition = .region(
         MKCoordinateRegion(center: .init(latitude: 51.5074, longitude: -0.1278),
                            span: .init(latitudeDelta: 0.02, longitudeDelta: 0.02))
     )
     @State private var myCoord: CLLocationCoordinate2D?
 
-    // Editing model
-    @State private var selectedId: String? = nil     // nil = creating new
+    // ✅ NEW: follow-me toggle state (add here, with the other @State vars)
+    @State private var followMe = true
+
+    // Editing model — unchanged
+    @State private var selectedId: String? = nil
     @State private var title: String = ""
     @State private var radius: Double = 200
     @State private var audioFile: String = ""
     @State private var centerCoord: CLLocationCoordinate2D? = nil
 
-    // Dropdown data
+    // Dropdown data — unchanged
     @State private var audioOptions: [String] = []
 
     @State private var locator = LiveLocation()
 
     var body: some View {
         VStack(spacing: 10) {
-            // --- Top controls: pick zone & audio ---
+            // Top controls — unchanged
             HStack(spacing: 10) {
-                // Zone dropdown
                 Picker("Zone", selection: Binding(
                     get: { selectedId ?? "NEW" },
                     set: { newVal in
@@ -68,7 +70,6 @@ struct ZoneEditorView: View {
                 }
                 .pickerStyle(.menu)
 
-                // Audio dropdown
                 Picker("Audio", selection: $audioFile) {
                     if audioOptions.isEmpty { Text("No audio in bundle").tag("") }
                     ForEach(audioOptions, id: \.self) { name in Text(name).tag(name) }
@@ -77,10 +78,9 @@ struct ZoneEditorView: View {
                 .frame(maxWidth: 220)
             }
 
-            // --- Map with all zones + editing preview + my red dot ---
+            // Map — unchanged drawing
             MapReader { proxy in
                 Map(position: $camera) {
-                    // me (red dot)
                     if let me = myCoord {
                         Annotation("Me", coordinate: me) {
                             ZStack {
@@ -90,7 +90,6 @@ struct ZoneEditorView: View {
                         }
                     }
 
-                    // all zones
                     ForEach(Array(manager.zones.enumerated()), id: \.1.id) { idx, z in
                         let c = CLLocationCoordinate2D(latitude: z.latitude, longitude: z.longitude)
                         let col: Color = {
@@ -108,7 +107,6 @@ struct ZoneEditorView: View {
                         }
                     }
 
-                    // editing preview
                     if let c = centerCoord {
                         MapCircle(center: c, radius: radius)
                             .foregroundStyle(Color.gray.opacity(0.12))
@@ -118,7 +116,6 @@ struct ZoneEditorView: View {
                         }
                     }
                 }
-                // tap to set/move center
                 .gesture(
                     SpatialTapGesture().onEnded { value in
                         if let coord = proxy.convert(value.location, from: .local) {
@@ -133,9 +130,12 @@ struct ZoneEditorView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             }
 
-            // --- Radius + actions ---
+            // Radius + actions — ✅ add the Toggle next to "Center on Me"
             HStack {
                 Button("Center on Me") { centerOnUser() }
+                Toggle("Follow Me", isOn: $followMe)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
                 Spacer()
                 Text("Radius: \(Int(radius)) m")
                 Slider(value: $radius, in: 50...500, step: 10).frame(maxWidth: 240)
@@ -157,26 +157,32 @@ struct ZoneEditorView: View {
         }
         .padding()
         .onAppear {
-            // live location
+            // ✅ only recenter when followMe is true
             locator.onUpdate = { loc in
                 myCoord = loc.coordinate
-                camera = .region(MKCoordinateRegion(center: loc.coordinate,
-                                                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)))
+                if followMe {
+                    camera = .region(MKCoordinateRegion(center: loc.coordinate,
+                                                        span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)))
+                }
             }
             locator.start()
-            // audio options from bundle
             audioOptions = manager.bundleAudioFiles()
-            // optional: preselect first zone for editing
             if let first = manager.zones.first { loadForEdit(first) }
             else { clearEditor() }
         }
+        // ✅ when toggling ON, snap camera once to me
+        .onChange(of: followMe) { on in
+            if on, let me = myCoord {
+                camera = .region(MKCoordinateRegion(center: me,
+                                                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)))
+            }
+        }
     }
 
-    // MARK: - Actions
+    // MARK: - Actions (unchanged)
     private func addOrUpdate() {
         guard let c = centerCoord, !audioFile.isEmpty else { return }
         let id = selectedId ?? UUID().uuidString
-        // keep colorIndex if editing
         let existingColorIndex = manager.zones.first(where: { $0.id == id })?.colorIndex
         let z = Zone(id: id, title: title.isEmpty ? "Zone" : title,
                      latitude: c.latitude, longitude: c.longitude,
@@ -208,7 +214,7 @@ struct ZoneEditorView: View {
         title = ""
         radius = 200
         audioFile = audioOptions.first ?? ""
-        centerCoord = myCoord // default draft at my location if available
+        centerCoord = myCoord
     }
 
     private func centerOnUser() {
