@@ -1,11 +1,12 @@
 import Foundation
 
-struct Zone: Decodable, Hashable {
+struct Zone: Codable, Hashable {
     let id: String
-    let title: String
-    let latitude: Double
-    let longitude: Double
-    let radius: Double
-    let audioFile: String
+    var title: String
+    var latitude: Double
+    var longitude: Double
+    var radius: Double
+    var audioFile: String
+    var colorIndex: Int? = nil
 }
 

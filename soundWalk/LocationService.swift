@@ -52,17 +52,27 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         print("Me:", loc.coordinate.latitude, loc.coordinate.longitude)
         debugDistances(allZones, current: loc)
     }
-
+    
     private func activateRegions(near location: CLLocation, zones: [Zone]) {
+        // Pick nearest ≤20
         let active = zones.sorted {
             CLLocation(latitude: $0.latitude, longitude: $0.longitude).distance(from: location) <
             CLLocation(latitude: $1.latitude, longitude: $1.longitude).distance(from: location)
         }.prefix(20)
 
+        // 1) For any old region we’re dropping, synthesize EXIT if we were inside it
+        let newIds = Set(active.map { $0.id })
+        for (oldId, oldZone) in zoneByRegionId where !newIds.contains(oldId) {
+            let c = CLLocationCoordinate2D(latitude: oldZone.latitude, longitude: oldZone.longitude)
+            let oldRegion = CLCircularRegion(center: c, radius: max(50, oldZone.radius), identifier: oldZone.id)
+            if oldRegion.contains(location.coordinate) { onExit(oldZone) }
+        }
+
+        // 2) Clear and install new regions
         manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
         zoneByRegionId.removeAll()
 
-        active.forEach { zone in
+        for zone in active {
             let c = CLLocationCoordinate2D(latitude: zone.latitude, longitude: zone.longitude)
             let r = CLCircularRegion(center: c, radius: max(50, zone.radius), identifier: zone.id)
             r.notifyOnEntry = true
@@ -70,13 +80,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             zoneByRegionId[zone.id] = zone
             manager.startMonitoring(for: r)
 
-            // ⬇️ trigger immediately if we’re already inside
-            if let cur = manager.location, r.contains(cur.coordinate) {
-                onEnter(zone)
-               
-            }
+            // If already inside -> ENTER now; otherwise force an EXIT (idempotent if nothing playing)
+            if r.contains(location.coordinate) { onEnter(zone) }
+            else { onExit(zone) }
         }
+
+        print("Monitored regions:", manager.monitoredRegions.count)
     }
+
 
     func locationManager(_ m: CLLocationManager, didEnterRegion region: CLRegion) {
         if let zone = zoneByRegionId[region.identifier] { onEnter(zone) }

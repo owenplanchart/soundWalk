@@ -120,8 +120,8 @@
 				5A59D07E2E5BCA920050866E /* SoundWalkManager.swift */,
 				5A59D0802E5BCAC20050866E /* LocationService.swift */,
 				5A59D07C2E5BCA330050866E /* Zone.swift */,
-				5A59D04D2E5B73BB0050866E /* Item.swift */,
 				5A59D0822E5BD8680050866E /* ZoneEditorView.swift */,
+				5A59D04D2E5B73BB0050866E /* Item.swift */,
 				5A59D04F2E5B73BC0050866E /* Assets.xcassets */,
 				5A59D0512E5B73BC0050866E /* Preview Content */,
 			);
