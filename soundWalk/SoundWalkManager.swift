@@ -4,8 +4,8 @@ import AVFoundation
 final class SoundWalkManager: NSObject, ObservableObject {
     @Published var insideIds: Set<String> = []
     @Published var zones: [Zone] = [ // ← mutable
-        .init(id:"a", title:"Zone A", latitude:51.474753, longitude:-0.057528, radius:200, audioFile:"familyUnits.wav"),
-        .init(id:"b", title:"Zone B", latitude:51.500,    longitude:-0.120000, radius:150, audioFile:"b.m4a"),
+        .init(id:"a", title:"Zone A", latitude:51.474753, longitude:-0.057528, radius:200, audioFile:"cello.wav"),
+        .init(id:"b", title:"Zone B", latitude:51.500,    longitude:-0.120000, radius:150, audioFile:"deliverance.wav"),
     ]
 
     private let loc = LocationService()
