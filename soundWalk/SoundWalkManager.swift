@@ -3,25 +3,29 @@ import AVFoundation
 
 final class SoundWalkManager: NSObject, ObservableObject {
     @Published var insideIds: Set<String> = []
+    @Published var zones: [Zone] = [ // ← mutable
+        .init(id:"a", title:"Zone A", latitude:51.474753, longitude:-0.057528, radius:200, audioFile:"familyUnits.wav"),
+        .init(id:"b", title:"Zone B", latitude:51.500,    longitude:-0.120000, radius:150, audioFile:"b.m4a"),
+    ]
+
     private let loc = LocationService()
     private var players: [String: AVAudioPlayer] = [:]
-
-    // Example zones
-    private let zones: [Zone] = [
-        .init(id:"a", title:"Zone A", latitude:51.474753, longitude:-0.057528, radius:200, audioFile:"familyUnits.wav"),
-        .init(id:"b", title:"Zone B", latitude:51.500, longitude:-0.120, radius:150, audioFile:"ClockTick.wav"),
-    ]
 
     override init() {
         super.init()
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
-
-        loc.onEnter = { [weak self] zone in self?.play(zone) }
-        loc.onExit  = { [weak self] zone in self?.stop(zone) }
+        loc.onEnter = { [weak self] z in self?.play(z) }
+        loc.onExit  = { [weak self] z in self?.stop(z) }
     }
 
     func start() { loc.start(for: zones) }
+
+    // Add/refresh zones at runtime
+    func addZone(_ z: Zone) {
+        zones.append(z)
+        loc.start(for: zones) // refresh geofences
+    }
 
     private func play(_ zone: Zone) {
         insideIds.insert(zone.id)
@@ -45,7 +49,7 @@ final class SoundWalkManager: NSObject, ObservableObject {
         }
     }
 
-    private func fade(_ p: AVAudioPlayer, to target: Float, seconds: TimeInterval = 2, completion: (() -> Void)? = nil) {
+    private func fade(_ p: AVAudioPlayer, to target: Float, seconds: TimeInterval = 1.5, completion: (() -> Void)? = nil) {
         let steps = 20, start = p.volume
         (1...steps).forEach { i in
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds * Double(i)/Double(steps)) {

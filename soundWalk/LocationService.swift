@@ -49,6 +49,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             activateRegions(near: loc, zones: allZones)
         }
         // Debug: print distances to each zone
+        print("Me:", loc.coordinate.latitude, loc.coordinate.longitude)
         debugDistances(allZones, current: loc)
     }
 
