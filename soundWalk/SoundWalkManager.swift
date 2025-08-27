@@ -2,32 +2,86 @@ import SwiftUI
 import AVFoundation
 
 final class SoundWalkManager: NSObject, ObservableObject {
+    // UI
     @Published var insideIds: Set<String> = []
-    @Published var zones: [Zone] = []           // loaded from disk
+    @Published var zones: [Zone] = []
 
+    // Location + audio
     private let loc = LocationService()
-    private var players: [String: AVAudioPlayer] = [:]
+    private let transport = StemTransport()
 
-    // Persist to Documents/zones.json
+    // Active zones for overlap-safe mixing
+    private var activeZoneIds = Set<String>()
+
+    // Persist (Documents/zones.json)
     private let zonesURL: URL = {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         return dir.appendingPathComponent("zones.json")
     }()
 
+    // Helpers
+    private func stemId(forFilename name: String) -> String {
+        (name as NSString).deletingPathExtension
+    }
+
+    // MARK: - Init
     override init() {
         super.init()
-        try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
-        loc.onEnter = { [weak self] z in self?.play(z) }
-        loc.onExit  = { [weak self] z in self?.stop(z) }
 
-        loadZonesIfNeeded()   // seed or load
+        // Register all available audio as stems (Bundle + Documents)
+        let files = audioLibraryFiles()
+        for f in files { try? transport.addStem(id: stemId(forFilename: f), filename: f, initialGain: 0) }
+        transport.bpm = 98; transport.beatsPerBar = 4
+        try? transport.startAllLooping()
+        print("Registered stems:", files.map { stemId(forFilename: $0) })
+
+        // Geofence hooks
+        loc.onEnter = { [weak self] z in self?.zoneDidEnter(z) }
+        loc.onExit  = { [weak self] z in self?.zoneDidExit(z) }
+
+        loadZonesIfNeeded()
     }
-    
 
     func start() { loc.start(for: zones) }
 
-    // MARK: - Zone management (add / replace / persist)
+    // MARK: - Overlap-safe mixing
+    private func refreshMix() {
+        // Compute target gain per stem as MAX across all active zones
+        var target: [String: Double] = [:]
+
+        for z in zones where activeZoneIds.contains(z.id) {
+            // Stems map
+            for (sid, g) in z.stems { target[sid] = max(target[sid] ?? 0, g) }
+            // Fallback: single-file zones act as stem with gain 1.0
+            if let f = z.audioFile {
+                let sid = stemId(forFilename: f)
+                target[sid] = max(target[sid] ?? 0, 1.0)
+            }
+        }
+
+        // Apply gains
+        for (sid, g) in target {
+            transport.setStem(sid, gain: Float(g), fadeSeconds: 1.2, quantizeBars: 1)
+        }
+        // Mute any stems not requested by any active zone (optional, only for known stems)
+        // If you want strict muting, list known stems and set to 0 when absent.
+    }
+
+    private func zoneDidEnter(_ z: Zone) {
+        insideIds.insert(z.id)
+        activeZoneIds.insert(z.id)
+        refreshMix()
+        print("ENTER \(z.title)")
+    }
+
+    private func zoneDidExit(_ z: Zone) {
+        insideIds.remove(z.id)
+        activeZoneIds.remove(z.id)
+        refreshMix()
+        print("EXIT  \(z.title)")
+    }
+
+    // MARK: - Zone management
     func addOrReplaceZone(_ z: Zone) {
         var next = zones
         if let i = next.firstIndex(where: { $0.id == z.id || $0.title == z.title }) {
@@ -43,102 +97,70 @@ final class SoundWalkManager: NSObject, ObservableObject {
     }
 
     func refreshZones(_ newZones: [Zone]) {
-        // stop players for removed zones
-        let oldIds = Set(zones.map { $0.id })
-        let newIds = Set(newZones.map { $0.id })
-        for removedId in oldIds.subtracting(newIds) {
-            if let z = zones.first(where: { $0.id == removedId }) { stop(z) }
-        }
+        // Remove vanished zones from active set
+        let oldIds = Set(zones.map(\.id))
+        let newIds = Set(newZones.map(\.id))
+        let removed = oldIds.subtracting(newIds)
+        activeZoneIds.subtract(removed)
+
         zones = newZones
         saveZones()
-        loc.start(for: zones)
+        loc.start(for: zones)  // re-arm geofences
+        refreshMix()
     }
 
     // MARK: - Persistence
     private func loadZonesIfNeeded() {
         if FileManager.default.fileExists(atPath: zonesURL.path) {
-            do {
-                zones = try JSONDecoder().decode([Zone].self, from: Data(contentsOf: zonesURL))
-            } catch {
+            do { zones = try JSONDecoder().decode([Zone].self, from: Data(contentsOf: zonesURL)) }
+            catch {
                 print("loadZones error:", error)
-                zones = defaultSeedZones()
-                saveZones()
+                zones = defaultSeedZones(); saveZones()
             }
         } else {
-            zones = defaultSeedZones()
-            saveZones()
+            zones = defaultSeedZones(); saveZones()
         }
     }
 
     private func saveZones() {
-        do {
-            let data = try JSONEncoder().encode(zones)
-            try data.write(to: zonesURL, options: .atomic)
-        } catch {
-            print("saveZones error:", error)
-        }
+        do { try JSONEncoder().encode(zones).write(to: zonesURL, options: .atomic) }
+        catch { print("saveZones error:", error) }
     }
 
     private func defaultSeedZones() -> [Zone] {
         [
             .init(id:"a", title:"Zone A", latitude:51.474753, longitude:-0.057528,
-                  radius:200, audioFile:"cello.wav",       colorIndex: 0),
-            .init(id:"b", title:"Zone B", latitude:51.500,    longitude:-0.120000,
-                  radius:150, audioFile:"deliverance.wav",   colorIndex: 1)
+                  radius:200, audioFile:nil, colorIndex:0, stems:["drums":1.0, "pads":0.6]),
+            .init(id:"b", title:"Zone B", latitude:51.500, longitude:-0.120000,
+                  radius:150, audioFile:nil, colorIndex:1, stems:["bass":1.0, "vox":0.8]),
         ]
     }
 
-    // MARK: - Audio
-    private func play(_ zone: Zone) {
-        insideIds.insert(zone.id)
-        if players[zone.id] == nil,
-           let url = Bundle.main.url(forResource: zone.audioFile, withExtension: nil),
-           let p = try? AVAudioPlayer(contentsOf: url) {
-            p.numberOfLoops = -1
-            p.volume = 0
-            p.play()
-            players[zone.id] = p
-            fade(p, to: 1)
-        } else if let p = players[zone.id] {
-            fade(p, to: 1)
-        }
-    }
-    // Discover bundled audio filenames (.m4a, .wav, .mp3, .caf)
+    // MARK: - Audio library helpers
     func bundleAudioFiles() -> [String] {
         let exts = ["m4a","wav","mp3","caf"]
-        var names: Set<String> = []
+        var names = Set<String>()
         for ext in exts {
             if let urls = Bundle.main.urls(forResourcesWithExtension: ext, subdirectory: nil) {
-                for u in urls { names.insert(u.lastPathComponent) }
+                urls.forEach { names.insert($0.lastPathComponent) }
             }
         }
-        // Stable order, show .m4a first (smaller files)
-        return names.sorted { (a, b) in
-            let pa = (a as NSString).pathExtension.lowercased()
-            let pb = (b as NSString).pathExtension.lowercased()
-            if pa == pb { return a.localizedCaseInsensitiveCompare(b) == .orderedAscending }
-            // m4a first, then wav, mp3, caf
-            let rank: [String:Int] = ["m4a":0,"wav":1,"mp3":2,"caf":3]
-            return (rank[pa] ?? 9) < (rank[pb] ?? 9)
-        }
+        return names.sorted()
     }
 
-
-    private func stop(_ zone: Zone) {
-        insideIds.remove(zone.id)
-        if let p = players[zone.id] {
-            fade(p, to: 0) { p.stop(); self.players.removeValue(forKey: zone.id) }
-        }
+    func audioLibraryFiles() -> [String] {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let docFiles = (try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil))?
+            .filter { ["m4a","wav","mp3","caf"].contains($0.pathExtension.lowercased()) }
+            .map { $0.lastPathComponent } ?? []
+        return Array(Set(docFiles + bundleAudioFiles())).sorted()
     }
 
-    private func fade(_ p: AVAudioPlayer, to target: Float, seconds: TimeInterval = 1.5, completion: (() -> Void)? = nil) {
-        let steps = 20, start = p.volume
-        (1...steps).forEach { i in
-            DispatchQueue.main.asyncAfter(deadline: .now() + seconds * Double(i)/Double(steps)) {
-                p.volume = start + (target - start) * Float(i)/Float(steps)
-                if i == steps { completion?() }
-            }
-        }
+    func resolveAudioURL(filename: String) -> URL? {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let docURL = docs.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: docURL.path) { return docURL }
+        return Bundle.main.url(forResource: filename, withExtension: nil)
     }
 }
 

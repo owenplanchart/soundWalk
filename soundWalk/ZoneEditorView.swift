@@ -181,13 +181,19 @@ struct ZoneEditorView: View {
 
     // MARK: - Actions (unchanged)
     private func addOrUpdate() {
-        guard let c = centerCoord, !audioFile.isEmpty else { return }
+        guard let c = centerCoord else { return }
         let id = selectedId ?? UUID().uuidString
         let existingColorIndex = manager.zones.first(where: { $0.id == id })?.colorIndex
-        let z = Zone(id: id, title: title.isEmpty ? "Zone" : title,
-                     latitude: c.latitude, longitude: c.longitude,
-                     radius: radius, audioFile: audioFile,
-                     colorIndex: existingColorIndex)
+        let z = Zone(
+            id: id,
+            title: title.isEmpty ? "Zone" : title,
+            latitude: c.latitude,
+            longitude: c.longitude,
+            radius: radius,
+            audioFile: audioFile.isEmpty ? nil : audioFile,   // ← optional
+            colorIndex: existingColorIndex,
+            stems: /* keep your stems map here, e.g. */ [:]
+        )
         manager.addOrReplaceZone(z)
         selectedId = id
     }
@@ -201,19 +207,18 @@ struct ZoneEditorView: View {
 
     private func loadForEdit(_ z: Zone) {
         selectedId = z.id
-        title = z.title
-        radius = z.radius
-        audioFile = z.audioFile
-        centerCoord = CLLocationCoordinate2D(latitude: z.latitude, longitude: z.longitude)
+        title      = z.title
+        radius     = z.radius
+        audioFile  = z.audioFile ?? ""   // ← was z.audioFile!
+        centerCoord = .init(latitude: z.latitude, longitude: z.longitude)
         camera = .region(MKCoordinateRegion(center: centerCoord!,
                                             span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)))
     }
-
     private func clearEditor() {
         selectedId = nil
         title = ""
         radius = 200
-        audioFile = audioOptions.first ?? ""
+        audioFile = audioOptions.first ?? ""   // empty means “no single-file playback”
         centerCoord = myCoord
     }
 
